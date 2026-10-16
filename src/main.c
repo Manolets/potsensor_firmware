@@ -1,6 +1,7 @@
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <esp_err.h>
+#include "test_hardware.c"
 
 #include "hardware.h"
 
@@ -20,4 +21,6 @@ void app_main() {
     ESP_LOGI(TAG, "Application booted");
     TaskHandle_t xblinker_handle = NULL;
     xTaskCreate(blink_status_led, "blink_status_led", 2048, NULL, 5, &xblinker_handle);
+
+    tests();
 }

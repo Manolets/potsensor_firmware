@@ -112,7 +112,7 @@ int test_capacitane_soil_sensor() {
     err = mcpwm_new_generator(oper, &gen_config, &generator);
 
     err = err | mcpwm_generator_set_action_on_timer_event(
-                    oper, MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,
+                    generator, MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,
                                                        MCPWM_TIMER_EVENT_EMPTY,
                                                        MCPWM_GEN_ACTION_HIGH));
 
@@ -168,6 +168,7 @@ int test_capacitane_soil_sensor() {
     mcpwm_del_comparator(comparator);
     mcpwm_del_operator(oper);
     mcpwm_del_timer(timer);
+    return 0;
 }
 
 void tests() {
