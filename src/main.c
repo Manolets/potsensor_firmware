@@ -1,7 +1,7 @@
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <esp_err.h>
-#include "test_hardware.c"
+#include "test_hardware.h"
 
 #include "hardware.h"
 
