@@ -2,7 +2,9 @@
 
 volatile int stop_reading = 0;
 
-void stop_reading_callback(void*) { stop_reading = 1; }
+void stop_reading_callback(void*) { 
+    ESP_LOGI(TAG_TESTS, "Stop reading callback triggered");
+    stop_reading = 1; }
 
 int test_status_led() {
     ESP_LOGI(TAG_TESTS, "Testing status LED");
@@ -21,9 +23,29 @@ int test_status_led() {
 }
 
 int test_wifi_antenna() {
-    esp_err_t err = esp_wifi_scan_start(NULL, true);
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    esp_wifi_set_max_tx_power(20);  
+    esp_err_t err = esp_wifi_init(&cfg);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to start WiFi scan");
+        ESP_LOGE(TAG_TESTS, "Failed to initialize WiFi: %s", esp_err_to_name(err));
+        return -1;
+    }
+
+    err = esp_wifi_set_mode(WIFI_MODE_STA);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG_TESTS, "Failed to set WiFi mode: %s", esp_err_to_name(err));
+        return -1;
+    }
+
+    err = esp_wifi_start();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG_TESTS, "Failed to start WiFi: %s", esp_err_to_name(err));
+        return -1;
+    }
+
+    err = esp_wifi_scan_start(NULL, true);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG_TESTS, "Failed to start WiFi scan: %s", esp_err_to_name(err));
         return -1;
     }
 
@@ -51,81 +73,34 @@ int test_wifi_antenna() {
 }
 
 int test_capacitane_soil_sensor() {
-    mcpwm_timer_handle_t timer = NULL;
-    mcpwm_oper_handle_t oper = NULL;
-    mcpwm_cmpr_handle_t comparator = NULL;
-    mcpwm_gen_handle_t generator = NULL;
-
-    // PWM Timer
-    const mcpwm_timer_config_t timer_config = {
-        .group_id = 0,
-        .clk_src = MCPWM_TIMER_CLK_SRC_DEFAULT,
-        .resolution_hz = 4000000,  // 4 MHz
-        .period_ticks = 4,         // Period = 4 tics = 1MHz cycle
-        .count_mode = MCPWM_TIMER_COUNT_MODE_UP,
+    esp_err_t err;
+    
+    ledc_timer_config_t ledc_timer = {
+        .freq_hz = 1000000,
+        .duty_resolution = LEDC_TIMER_4_BIT,
+        .timer_num = LEDC_TIMER_0,
     };
-    esp_err_t err = mcpwm_new_timer(&timer_config, &timer);
+
+    err = ledc_timer_config(&ledc_timer);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to create PWM timer.");
+        ESP_LOGE(TAG_TESTS, "Failed to configure LEDC timer. %s", esp_err_to_name(err));
         return -1;
     }
 
-    // PWM Operator
-    const mcpwm_operator_config_t oper_config = {
-        .group_id = 0,
+    ledc_channel_config_t ledc_channel = {
+        .channel = LEDC_CHANNEL_0,
+        .duty = 8,
+        .gpio_num = PWM_PIN,
+        .hpoint = 0,
+        .timer_sel = LEDC_TIMER_0,
     };
-    err = mcpwm_new_operator(&oper_config, &oper);
+
+    err = ledc_channel_config(&ledc_channel);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to create PWM operator.");
+        ESP_LOGE(TAG_TESTS, "Failed to configure LEDC channel. %s", esp_err_to_name(err));
         return -1;
     }
 
-    // PWM Comparator
-    const mcpwm_comparator_config_t comparator_config = {
-        .flags.update_cmp_on_tez = true,
-    };
-    err = mcpwm_new_comparator(oper, &comparator_config, &comparator);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to create PWM comparator.");
-        return -1;
-    }
-
-    err = mcpwm_comparator_set_compare_value(comparator,
-                                             2);  // 2/4 tics => 50% duty cycle
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to set duty cycle for PWM comparator.");
-        return -1;
-    }
-
-    // PWM Generator
-    const mcpwm_generator_config_t gen_config = {
-        .gen_gpio_num = PWM_PIN,
-    };
-    err = mcpwm_new_generator(oper, &gen_config, &generator);
-
-    err = err |
-          mcpwm_generator_set_action_on_timer_event(
-              generator, MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,
-                                                      MCPWM_TIMER_EVENT_EMPTY,
-                                                      MCPWM_GEN_ACTION_HIGH));
-
-    err = err | mcpwm_generator_set_action_on_compare_event(
-                    generator, MCPWM_GEN_COMPARE_EVENT_ACTION(
-                                   MCPWM_TIMER_DIRECTION_UP, comparator,
-                                   MCPWM_GEN_ACTION_LOW));
-
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to create and configure PWM generator.");
-        return -1;
-    }
-
-    // Start PWM
-    err = mcpwm_timer_enable(timer);
-    err = err | mcpwm_timer_start_stop(timer, MCPWM_TIMER_START_NO_STOP);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to start PWM timer.");
-        return -1;
-    }
 
     // ADC measurements
     adc_oneshot_unit_handle_t adc_handle = NULL;
@@ -167,7 +142,7 @@ int test_capacitane_soil_sensor() {
     }
 
     int reading = 0;
-    int min = 0, max = 0;
+    int min = 9999, max = 0;
     while (!stop_reading) {
         err = adc_oneshot_read(adc_handle, ADC_CHANNEL_4, &reading);
 
@@ -192,11 +167,7 @@ int test_capacitane_soil_sensor() {
     gpio_isr_handler_remove(BOOT_PIN);
 
     // Stop and delete PWM
-    mcpwm_timer_start_stop(timer, MCPWM_TIMER_STOP_FULL);
-    mcpwm_del_generator(generator);
-    mcpwm_del_comparator(comparator);
-    mcpwm_del_operator(oper);
-    mcpwm_del_timer(timer);
+
     return ESP_OK;
 }
 
@@ -225,20 +196,20 @@ int test_HDC3020(){
 void tests() {
     ESP_LOGI(TAG_TESTS, "Running hardware tests");
     test_status_led();
+    esp_err_t err;
+    // ESP_LOGI(TAG_TESTS, "Testing WiFi antenna");
+    // err = nvs_flash_init();
+    // if (err != ESP_OK) {
+    //     ESP_LOGE(TAG_TESTS, "Failed to initialize NVS");
+    //     return;
+    // }
 
-    ESP_LOGI(TAG_TESTS, "Testing WiFi antenna");
-    esp_err_t err = nvs_flash_init();
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to initialize NVS");
-        return;
-    }
-
-    err = test_wifi_antenna();
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "WiFi antenna test failed");
-    } else {
-        ESP_LOGI(TAG_TESTS, "WiFi antenna test passed");
-    }
+    // err = test_wifi_antenna();
+    // if (err != ESP_OK) {
+    //     ESP_LOGE(TAG_TESTS, "WiFi antenna test failed");
+    // } else {
+    //     ESP_LOGI(TAG_TESTS, "WiFi antenna test passed");
+    // }
 
     err = test_capacitane_soil_sensor();
 

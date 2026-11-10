@@ -1,7 +1,4 @@
-#include <driver/mcpwm_cmpr.h>
-#include <driver/mcpwm_gen.h>
-#include <driver/mcpwm_oper.h>
-#include <driver/mcpwm_timer.h>
+#include <HDC3020.h>
 #include <esp_adc/adc_oneshot.h>
 #include <esp_err.h>
 #include <esp_log.h>
@@ -9,7 +6,7 @@
 #include <freertos/FreeRTOS.h>
 #include <nvs_flash.h>
 
-#include <HDC3020.h>
+#include "driver/ledc.h"
 #include "hardware.h"
 
 #pragma once
