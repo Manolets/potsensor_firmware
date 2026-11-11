@@ -2,9 +2,9 @@
 
 volatile int stop_reading = 0;
 
-void stop_reading_callback(void*) { 
-    ESP_LOGI(TAG_TESTS, "Stop reading callback triggered");
-    stop_reading = 1; }
+// void stop_reading_callback(void*) {
+//     ESP_LOGI(TAG_TESTS, "Stop reading callback triggered");
+//     stop_reading = 1; }
 
 int test_status_led() {
     ESP_LOGI(TAG_TESTS, "Testing status LED");
@@ -24,16 +24,18 @@ int test_status_led() {
 
 int test_wifi_antenna() {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    esp_wifi_set_max_tx_power(20);  
+    esp_wifi_set_max_tx_power(20);
     esp_err_t err = esp_wifi_init(&cfg);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to initialize WiFi: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG_TESTS, "Failed to initialize WiFi: %s",
+                 esp_err_to_name(err));
         return -1;
     }
 
     err = esp_wifi_set_mode(WIFI_MODE_STA);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to set WiFi mode: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG_TESTS, "Failed to set WiFi mode: %s",
+                 esp_err_to_name(err));
         return -1;
     }
 
@@ -45,7 +47,8 @@ int test_wifi_antenna() {
 
     err = esp_wifi_scan_start(NULL, true);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to start WiFi scan: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG_TESTS, "Failed to start WiFi scan: %s",
+                 esp_err_to_name(err));
         return -1;
     }
 
@@ -60,7 +63,8 @@ int test_wifi_antenna() {
     ESP_LOGI(TAG_TESTS, "Found %d access points", ap_count);
 
     if (ap_count < 1) {
-        ESP_LOGW(TAG_TESTS, "No access points found. Antenna may be defective.");
+        ESP_LOGW(TAG_TESTS,
+                 "No access points found. Antenna may be defective.");
         return -1;
     }
 
@@ -74,7 +78,7 @@ int test_wifi_antenna() {
 
 int test_capacitane_soil_sensor() {
     esp_err_t err;
-    
+
     ledc_timer_config_t ledc_timer = {
         .freq_hz = 1000000,
         .duty_resolution = LEDC_TIMER_4_BIT,
@@ -83,7 +87,8 @@ int test_capacitane_soil_sensor() {
 
     err = ledc_timer_config(&ledc_timer);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to configure LEDC timer. %s", esp_err_to_name(err));
+        ESP_LOGE(TAG_TESTS, "Failed to configure LEDC timer. %s",
+                 esp_err_to_name(err));
         return -1;
     }
 
@@ -97,10 +102,10 @@ int test_capacitane_soil_sensor() {
 
     err = ledc_channel_config(&ledc_channel);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to configure LEDC channel. %s", esp_err_to_name(err));
+        ESP_LOGE(TAG_TESTS, "Failed to configure LEDC channel. %s",
+                 esp_err_to_name(err));
         return -1;
     }
-
 
     // ADC measurements
     adc_oneshot_unit_handle_t adc_handle = NULL;
@@ -128,22 +133,22 @@ int test_capacitane_soil_sensor() {
     // Set Boot Pin to listen
     gpio_config_t boot_pin_cfg = {
         .mode = GPIO_MODE_INPUT,
-        .intr_type = GPIO_INTR_ANYEDGE,
+        // .intr_type = GPIO_INTR_ANYEDGE,
         .pin_bit_mask = (1ULL << BOOT_PIN),
     };
     err = gpio_config(&boot_pin_cfg);
-    gpio_isr_handle_t isr_handle;
-    err = err | gpio_isr_register(&stop_reading_callback, NULL,
-                                  ESP_INTR_FLAG_EDGE, &isr_handle);
+    // gpio_isr_handle_t isr_handle;
+    // err = err | gpio_isr_register(&stop_reading_callback, NULL,
+    //                               ESP_INTR_FLAG_EDGE, &isr_handle);
 
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG_TESTS, "Failed to configure BOOT PIN.");
-        return -1;
-    }
+    // if (err != ESP_OK) {
+    //     ESP_LOGE(TAG_TESTS, "Failed to configure BOOT PIN.");
+    //     return -1;
+    // }
 
     int reading = 0;
     int min = 9999, max = 0;
-    while (!stop_reading) {
+    while (gpio_get_level(BOOT_PIN)) {
         err = adc_oneshot_read(adc_handle, ADC_CHANNEL_4, &reading);
 
         if (err != ESP_OK) {
@@ -157,36 +162,44 @@ int test_capacitane_soil_sensor() {
             min = reading;
         }
 
-        ESP_LOGI(TAG_TESTS, "Min: %d | Max: %d | Current: %d", min, max, reading);
+        ESP_LOGI(TAG_TESTS, "Min: %d | Max: %d | Current: %d", min, max,
+                 reading);
 
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 
     // Delete ADC & GPIO
     adc_oneshot_del_unit(adc_handle);
-    gpio_isr_handler_remove(BOOT_PIN);
+    // gpio_isr_handler_remove(BOOT_PIN);
 
     // Stop and delete PWM
 
     return ESP_OK;
 }
 
-int test_HDC3020(){
+int test_HDC3020() {
     esp_err_t err = configure_power_pin();
     err = err | power_on_peripherals();
 
-    if (err != ESP_OK){
+    if (err != ESP_OK) {
         ESP_LOGE(TAG_TESTS, "Failed to provide power to peripherals.");
         return -1;
     }
 
-    err = initialise_HDC3020();
-    double temp, hum;
-    err = err | read_HDC3020(&temp, &hum);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);  // Wait for peripherals to power up
 
-    if (err != ESP_OK){
-        ESP_LOGE(TAG_TESTS, "Failed to read HDC3020.");
-        return -1;
+    err = initialise_HDC3020();
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS);  // Wait for HDC3020 to initialize
+
+    double temp, hum;
+    while (gpio_get_level(BOOT_PIN)) {
+        err = err | read_HDC3020(&temp, &hum);
+
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG_TESTS, "Failed to read HDC3020.");
+            return -1;
+        }
     }
     ESP_LOGI(TAG_TESTS, "HDC3020 test successful t: %d, h:%d", temp, hum);
 
@@ -219,7 +232,7 @@ void tests() {
 
     err = test_HDC3020();
 
-    if (err != ESP_OK){
+    if (err != ESP_OK) {
         ESP_LOGE(TAG_TESTS, "HDC3020 sensor test failed.");
     }
 }
