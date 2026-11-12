@@ -162,8 +162,8 @@ int test_capacitane_soil_sensor() {
             min = reading;
         }
 
-        ESP_LOGI(TAG_TESTS, "Min: %d | Max: %d | Current: %d", min, max,
-                 reading);
+        ESP_LOGI(TAG_TESTS, "Min: %d | Max: %d | Current: %d percentage: %f", min, max,
+                 reading, (double)(reading - min) / (double)(max - min) * 100.0);
 
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
@@ -201,7 +201,7 @@ int test_HDC3020() {
             return -1;
         }
     }
-    ESP_LOGI(TAG_TESTS, "HDC3020 test successful t: %d, h:%d", temp, hum);
+    ESP_LOGI(TAG_TESTS, "HDC3020 test successful t: %f, h:%f", temp, hum);
 
     return ESP_OK;
 }

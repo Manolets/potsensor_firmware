@@ -54,23 +54,24 @@ esp_err_t read_HDC3020(double* temp, double* hum) {
 
     vTaskDelay(500 / portTICK_PERIOD_MS);
 
-    uint8_t readings[4] = {0};
+    uint8_t readings[6] = {0};
 
     err = err | i2c_master_receive(HDC3020_handle, readings,
-                                   (4 * sizeof(uint8_t)), 500);
+                                   (6 * sizeof(uint8_t)), 500);
 
     if (err != ESP_OK) {
         ESP_LOGE(HDC3020, "Error reading sensor.");
         return -1;
     } else {
-        uint16_t raw_temp = ((uint16_t)readings[0] << 8) | readings[1];
-        uint16_t raw_hum = ((uint16_t)readings[2] << 8) | readings[3];
-
+        ESP_LOGI(HDC3020, "Raw data %02x %02x %02x %02x %02x %02x", readings[0], readings[1],
+                 readings[2], readings[3], readings[4], readings[5]);
+        uint16_t raw_temp = (((uint16_t)readings[0] << 8) | readings[1]);
+        uint16_t raw_hum = (((uint16_t)readings[3] << 8) | readings[4]);
         *temp = -45.0 + (175.0 * ((double)raw_temp / 65535.0));
         *hum = 100.0 * ((double)raw_hum / 65535.0);
 
-        ESP_LOGI(HDC3020, "Successful readings temp: %d and  hum: %d.", *temp,
-                 *hum);
+        ESP_LOGI(HDC3020, "Successful readings temp: %f and  hum: %f.", (double)(*temp),
+                 (double)(*hum));
     }
     return ESP_OK;
 }
